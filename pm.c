@@ -415,18 +415,17 @@ int priority_preemptive(Patient* p, int n) {
         }
 
         //handling preemption
-        int best_ready = find_best_ready_patient(p, n, doc0, doc1, time);
+        while(1){
+            int best_ready = find_best_ready_patient(p, n, doc0, doc1, time);
 
-        if( (best_ready != -1) && ((doc0 != -1) || (doc1 != -1)) ){
-            
+            if((best_ready == -1) || (doc0 == -1 && doc1 == -1)){
+                break;
+            }
 
             int to_preempt = get_process_to_preempt(p, doc0, doc1);
             
             if (to_preempt != -1) {
-
-
-                if (p[best_ready].priority < p[to_preempt].priority){
-
+                if (p[best_ready].priority < p[to_preempt].priority) {
                     if (to_preempt == doc0){
                         doc0 = best_ready;
                     }
@@ -434,12 +433,17 @@ int priority_preemptive(Patient* p, int n) {
                         doc1 = best_ready;
                     }
 
-
                     if(p[best_ready].started == -1){
                         p[best_ready].started = 1;
                         p[best_ready].start_time = time;
                     }
+
                 }
+                else {
+                    break;
+                }
+            } else {
+                break;
             }
         }
 
@@ -511,9 +515,20 @@ void print_standardized_output(Patient* p, int n) {
     double avg_rt = total_rt / n;
     
 
-    double throughput = (makespan > 0) ? ((double)n / makespan) : 0.0;
+    int first_arrival = p[0].arrival;
 
-    double utilization = (makespan > 0) ? (((double)total_service_time / (makespan * 2.0)) * 100.0) : 0.0;
+    for (int i = 1; i < n; i++) {
+        if (p[i].arrival < first_arrival) {
+            first_arrival = p[i].arrival;
+        }
+    }
+
+    int elapsed = makespan - first_arrival;
+
+    double throughput = (elapsed > 0) ? (double)n / elapsed : 0.0;
+
+    double utilization = (elapsed > 0) ? ((double)total_service_time / (elapsed * 2.0)) * 100.0 : 0.0;
+
 
     printf("SUMMARY\n");
     printf("AVERAGE_WAITING,%.2f\n", avg_wt);
@@ -531,6 +546,7 @@ void print_standardized_output(Patient* p, int n) {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //main
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, char *argv[]){
     
     char *input_file = argv[1];
@@ -554,18 +570,19 @@ int main(int argc, char *argv[]){
 
     Patient p[n];
 
-    for(i = 0; i< n; i++){
-        fscanf(fp, "%[^,],%d,%d,%d,%s", 
-               p[i].id, 
-               &p[i].arrival, 
-               &p[i].priority, 
-               &p[i].service, 
-               p[i].category);
-        p[i].remaining = p[i].service;
-        p[i].start_time = -1;
-        p[i].completion_time = -1;
-        p[i].started = -1;
-        p[i].completed = -1;
+    for(i = 0; i < n; i++){
+            if(fscanf(fp, " %31[^,],%d,%d,%d,%63[^\r\n]", p[i].id, &p[i].arrival, &p[i].priority, &p[i].service, p[i].category) != 5){
+                fprintf(stderr, "Invalid  row %d\n", i+1);
+                fflush(stderr);
+                fclose(fp);
+                return 1;
+            }
+
+            p[i].remaining = p[i].service;
+            p[i].start_time = -1;
+            p[i].completion_time = -1;
+            p[i].started = -1;
+            p[i].completed = -1;
     }
 
     fclose(fp);
@@ -585,12 +602,12 @@ int main(int argc, char *argv[]){
     if(strcmp(algorithm, "FCFS") == 0){
         fcfs(p, n);
     } 
-    else if((strcmp(algorithm, "NON-PREEMPTIVE") == 0) || (strcmp(algorithm, "NP") == 0)){
+    else if (strcmp(algorithm, "PRIORITY") == 0 || strcmp(algorithm, "NON-PREEMPTIVE") == 0 || strcmp(algorithm, "NP") == 0) {
         priority_nonpreemptive(p, n);
-    } 
-    else if((strcmp(algorithm, "PREEMPTIVE") == 0) || (strcmp(algorithm, "PP") == 0)){
+    }
+    else if (strcmp(algorithm, "PRIORITY_PREEMPTIVE") == 0 || strcmp(algorithm, "PREEMPTIVE") == 0 || strcmp(algorithm, "PP") == 0) {
         priority_preemptive(p, n);
-    } 
+    }
     else{
         printf("Error\n");
         return 1;
@@ -603,3 +620,4 @@ int main(int argc, char *argv[]){
 
     return 0;
 }
+
